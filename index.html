@@ -73,7 +73,13 @@
                                 <span class="sub-icon">🔗</span>
                                 <span>LIVE NETWORK TOPOLOGY GRAPH</span>
                             </div>
-                            <span class="sub-badge" id="topologySubBadge">Real-time SPF transition</span>
+                            <div class="sub-panel-header-actions">
+                                <span class="sub-badge" id="topologySubBadge">Real-time SPF transition</span>
+                                <button id="zoomViewBtn" class="btn-zoom-trigger" type="button" title="Open large zoomed view of network topology with simulation controls">
+                                    <span class="btn-icon">🔍</span>
+                                    <span>Zoom View</span>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- SVG TOPOLOGY CANVAS (640x400) -->
@@ -704,6 +710,75 @@ R4 - Server: 1 (Datacenter Link)</textarea>
                     <span>Ask Tutor</span>
                     <span class="btn-icon">🚀</span>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ZOOMED TOPOLOGY MODAL -->
+    <div id="zoomTopologyModal" class="tutor-modal-overlay" style="display: none;">
+        <div class="tutor-modal-box zoom-modal-box">
+            <!-- Modal Header -->
+            <div class="modal-top">
+                <div class="modal-title-wrap">
+                    <div class="tutor-avatar zoom-avatar">🔍</div>
+                    <div>
+                        <div class="tutor-title-row">
+                            <h3>Zoomed Live Network Topology</h3>
+                            <span class="ai-badge-live zoom-badge-live">Live Interactive View</span>
+                        </div>
+                        <p class="tutor-status-text">Expanded high-resolution simulation &bull; Click any router to toggle fail/repair</p>
+                    </div>
+                </div>
+                <div class="modal-header-actions">
+                    <div class="zoom-header-telemetry">
+                        <span class="step-badge" id="zoomStepBadge">Step <strong id="zoomStepBadgeNum">0</strong></span>
+                        <span class="telemetry-chip healthy" id="zoomStatusChip">HEALTHY</span>
+                    </div>
+                    <button id="closeZoomModalBtn" class="modal-close-x" type="button" title="Close Zoom View">&times;</button>
+                </div>
+            </div>
+
+            <!-- Modal Body: High-Res SVG Canvas -->
+            <div class="zoom-canvas-body">
+                <div class="canvas-viewport zoom-viewport" id="zoomCanvasViewport">
+                    <svg id="zoomNetworkSvg" viewBox="0 0 640 400" preserveAspectRatio="xMidYMid meet">
+                        <!-- Cloned & synchronized from #networkSvg -->
+                    </svg>
+                    <!-- Floating hover tooltip for zoom view -->
+                    <div id="zoomHoverTooltip" class="canvas-node-tooltip" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Modal Footer: Interactive Simulation Controls & Path Info -->
+            <div class="zoom-controls-bar">
+                <div class="zoom-controls-left">
+                    <button id="zoomStartSimBtn" class="btn-action btn-blue" type="button" title="Initialize packet simulation">
+                        <span class="btn-icon">▶</span>
+                        <span class="btn-text">Start Simulation</span>
+                    </button>
+                    <button id="zoomPrevStepBtn" class="btn-action btn-dark" type="button" title="Step one hop backward">
+                        <span class="btn-icon">⏮</span>
+                        <span class="btn-text">Prev Step</span>
+                    </button>
+                    <button id="zoomNextStepBtn" class="btn-action btn-green" type="button" title="Advance one discrete hop">
+                        <span class="btn-icon">⏭</span>
+                        <span class="btn-text">Next Step</span>
+                    </button>
+                    <button id="zoomResetSimBtn" class="btn-action btn-dark" type="button" title="Reset packet simulation">
+                        <span class="btn-icon">🔄</span>
+                        <span class="btn-text">Reset</span>
+                    </button>
+                </div>
+                <div class="zoom-controls-right">
+                    <div class="zoom-info-badge">
+                        <span class="zoom-info-label">PATH:</span>
+                        <span class="zoom-info-val" id="zoomActiveRouteText">PC → R1 → R2 → R4 → Server</span>
+                    </div>
+                    <div class="zoom-info-badge">
+                        <span class="zoom-info-label">COST:</span>
+                        <span class="zoom-info-val" id="zoomActiveCostText">6</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

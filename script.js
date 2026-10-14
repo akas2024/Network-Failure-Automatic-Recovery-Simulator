@@ -133,7 +133,7 @@
                 gain.connect(this.ctx.destination);
                 osc.start();
                 osc.stop(this.ctx.currentTime + 0.07);
-            } catch (e) {}
+            } catch (e) { }
         }
 
         playSuccess() {
@@ -155,7 +155,7 @@
                     osc.start(now + i * 0.08);
                     osc.stop(now + i * 0.08 + 0.25);
                 });
-            } catch (e) {}
+            } catch (e) { }
         }
 
         playAlert() {
@@ -176,7 +176,7 @@
                 gain.connect(this.ctx.destination);
                 osc.start(now);
                 osc.stop(now + 0.21);
-            } catch (e) {}
+            } catch (e) { }
         }
     }
 
@@ -313,6 +313,7 @@
 
             svgHtml += `
                 <g class="link-item ${isDead ? 'failed' : ''}" id="linkItem-${l.id}" data-link="${l.id}">
+                    <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="hit-line" stroke="transparent" stroke-width="26" pointer-events="stroke" cursor="pointer"/>
                     <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="base-line"/>
                     <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="active-line" id="flow-${l.id}"/>
                     <g class="weight-tag" transform="translate(${midX}, ${midY})">
@@ -331,21 +332,31 @@
         setupLinkClickHandlers();
     }
 
+    function toggleLinkState(linkId) {
+        sound.init();
+        const l = links.find(x => x.id === linkId);
+        if (!l) return;
+        if (l.status === "ACTIVE") {
+            failLink(l.id);
+        } else {
+            l.status = "ACTIVE";
+            sound.playSuccess();
+            addLogStep(simState.currentHopIndex, "Topology", l.id, "REPAIR", `Link ${l.id} restored.`, "success");
+            handleTopologyUpdate();
+        }
+        if (typeof syncZoomSvg === "function" && document.getElementById("zoomTopologyModal")?.style.display === "flex") {
+            syncZoomSvg();
+            if (typeof updateZoomTelemetry === "function") updateZoomTelemetry();
+        }
+    }
+
     function setupLinkClickHandlers() {
         links.forEach(l => {
             const g = document.getElementById(`linkItem-${l.id}`);
             if (g) {
                 g.onclick = (e) => {
                     e.stopPropagation();
-                    sound.init();
-                    if (l.status === "ACTIVE") {
-                        failLink(l.id);
-                    } else {
-                        l.status = "ACTIVE";
-                        sound.playSuccess();
-                        addLogStep(simState.currentHopIndex, "Topology", l.id, "REPAIR", `Link ${l.id} restored.`, "success");
-                        handleTopologyUpdate();
-                    }
+                    toggleLinkState(l.id);
                 };
             }
         });
@@ -1052,6 +1063,12 @@
 
         // 5. Update Machine Dashboard & Canvas Bottom Bar
         updateDashboard(spfResult);
+
+        // 6. Synchronize Zoom Modal if open
+        if (typeof updateZoomTelemetry === "function") updateZoomTelemetry();
+        if (typeof syncZoomSvg === "function" && document.getElementById("zoomTopologyModal")?.style.display === "flex") {
+            syncZoomSvg();
+        }
     }
 
     function updateBreadcrumbChain(spfResult) {
@@ -1324,11 +1341,20 @@
         document.getElementById("canvasStatusBadge").className = "idle-badge active-mode";
         document.getElementById("canvasStatusText").innerHTML = `<strong>Simulation Initialized!</strong> Packet buffered at <code>PC (192.168.1.10)</code>. Click <strong>Next Step</strong> to transmit to <code>${nextTarget}</code>.`;
 
+        removeDeliveryBadge();
+
         // 7. Update Buttons: Start Sim indicates ready, Next Step pulses green!
         const startBtn = document.getElementById("startSimBtn");
         const nextBtn = document.getElementById("nextStepBtn");
         const prevBtn = document.getElementById("prevStepBtn");
+        const zoomNextBtn = document.getElementById("zoomNextStepBtn");
         const guideText = document.getElementById("simGuideText");
+
+        if (nextBtn) nextBtn.classList.remove("btn-delivered");
+        if (zoomNextBtn) {
+            zoomNextBtn.classList.remove("btn-delivered");
+            zoomNextBtn.innerHTML = `<span class="btn-icon">⏭</span><span class="btn-text">Next Step</span>`;
+        }
 
         startBtn.innerHTML = `<span class="btn-icon">⚡</span><span>Ready (At PC)</span>`;
         startBtn.title = "Simulation initialized. Packet docked at PC.";
@@ -1416,7 +1442,7 @@
         // Find edge weight
         const lk = links.find(
             l => (l.source === fromNode && l.target === toNode) ||
-                 (l.source === toNode && l.target === fromNode)
+                (l.source === toNode && l.target === fromNode)
         );
         const linkWeight = lk ? lk.weight : 1;
         const linkId = lk ? lk.id : `${fromNode}-${toNode}`;
@@ -1476,17 +1502,32 @@
 
             actionDesc = `Packet successfully delivered to destination Server! HTTP 200 OK Response (Total Path Cost: ${simState.accumulatedCost}).`;
 
-            document.getElementById("canvasStatusBadge").textContent = "DELIVERED";
-            document.getElementById("canvasStatusBadge").className = "idle-badge active-mode";
+            document.getElementById("canvasStatusBadge").textContent = "✓ DELIVERED";
+            document.getElementById("canvasStatusBadge").className = "idle-badge delivered-mode";
             document.getElementById("canvasStatusText").innerHTML = `🎉 <strong>Packet Delivered!</strong> Reached <code>Server (172.16.0.100)</code> with total metric cost <strong>${simState.accumulatedCost}</strong>. Click <strong>Reset</strong> to rerun.`;
 
             nextBtn.innerHTML = `<span>✓ Delivered</span>`;
             nextBtn.title = `Packet successfully delivered to Server! (Cost: ${simState.accumulatedCost})`;
             nextBtn.classList.remove("ready-pulse");
+            nextBtn.classList.add("btn-delivered");
+
+            // Also update zoom modal Next Step button & status chip if present
+            const zoomNextBtn = document.getElementById("zoomNextStepBtn");
+            if (zoomNextBtn) {
+                zoomNextBtn.innerHTML = `<span class="btn-icon">✓</span><span class="btn-text">Delivered</span>`;
+                zoomNextBtn.classList.add("btn-delivered");
+            }
+            const zoomStatusChip = document.getElementById("zoomStatusChip");
+            if (zoomStatusChip) {
+                zoomStatusChip.className = "telemetry-chip healthy";
+                zoomStatusChip.textContent = "✓ DELIVERED";
+            }
+
+            renderDeliveryBadgeOnServer();
 
             const guideText = document.getElementById("simGuideText");
             if (guideText) {
-                guideText.innerHTML = `🎉 <strong>Delivery Complete:</strong> Packet reached <strong>Server</strong>! Click <strong>Reset</strong> or test another scenario below.`;
+                guideText.innerHTML = `🎉 <strong>Delivery Complete:</strong> Packet reached <strong>Server</strong> with green checkmark! Click <strong>Reset</strong> or test another scenario below.`;
             }
 
         } else {
@@ -1532,7 +1573,7 @@
         // Find weight to subtract
         const lk = links.find(
             l => (l.source === currentToNode && l.target === prevNode) ||
-                 (l.source === prevNode && l.target === currentToNode)
+                (l.source === prevNode && l.target === currentToNode)
         );
         const linkWeight = lk ? lk.weight : 1;
 
@@ -1564,10 +1605,19 @@
         document.getElementById("canvasStatusBadge").textContent = `HOP ${hopNumber}/${totalHops}`;
         document.getElementById("canvasStatusText").innerHTML = `<strong>Stepped Back to ${prevNode}:</strong> Packet docked at <code>${prevNode}</code>. Next forward step: <code>${nextNode}</code>.`;
 
+        removeDeliveryBadge();
+
         const nextBtn = document.getElementById("nextStepBtn");
         nextBtn.innerHTML = `<span>&rarr; Next Step</span>`;
         nextBtn.title = `Step forward to ${nextNode}`;
+        nextBtn.classList.remove("btn-delivered");
         nextBtn.classList.add("ready-pulse");
+
+        const zoomNextBtn = document.getElementById("zoomNextStepBtn");
+        if (zoomNextBtn) {
+            zoomNextBtn.classList.remove("btn-delivered");
+            zoomNextBtn.innerHTML = `<span class="btn-icon">⏭</span><span class="btn-text">Next Step</span>`;
+        }
 
         if (hopNumber === 0) {
             document.getElementById("prevStepBtn").disabled = true;
@@ -1584,6 +1634,43 @@
     }
 
     /**
+     * Renders a glowing SVG badge with green checkmark over destination Server
+     */
+    function renderDeliveryBadgeOnServer() {
+        removeDeliveryBadge();
+        const srvPos = nodes.Server ? nodes.Server.pos : { x: 580, y: 200 };
+        const badgeX = srvPos.x;
+        const badgeY = srvPos.y - 48;
+
+        const badgeHtml = `
+            <g class="delivery-success-badge" id="serverDeliveryBadge" transform="translate(${badgeX}, ${badgeY})">
+                <rect x="-56" y="-14" width="112" height="28" rx="14" class="delivery-badge-rect"/>
+                <text x="0" y="5" text-anchor="middle" class="delivery-badge-text">✓ DELIVERED</text>
+            </g>
+        `;
+
+        const mainSvg = document.getElementById("networkSvg");
+        if (mainSvg) {
+            mainSvg.insertAdjacentHTML("beforeend", badgeHtml);
+        }
+
+        const zoomSvg = document.getElementById("zoomNetworkSvg");
+        if (zoomSvg) {
+            const existingZoomBadge = zoomSvg.querySelector("#serverDeliveryBadge");
+            if (!existingZoomBadge) {
+                zoomSvg.insertAdjacentHTML("beforeend", badgeHtml);
+            }
+        }
+    }
+
+    /**
+     * Removes all delivery badges from main SVG and zoom SVG
+     */
+    function removeDeliveryBadge() {
+        document.querySelectorAll("#serverDeliveryBadge").forEach(el => el.remove());
+    }
+
+    /**
      * Resets the simulation back to initial clean state
      */
     function resetSimulation() {
@@ -1594,6 +1681,8 @@
         simState.accumulatedCost = 0;
 
         stats.currentStep = 0;
+
+        removeDeliveryBadge();
 
         document.getElementById("packetToken").style.display = "none";
         document.getElementById("dropToken").style.display = "none";
@@ -1608,13 +1697,20 @@
         const startBtn = document.getElementById("startSimBtn");
         const nextBtn = document.getElementById("nextStepBtn");
         const prevBtn = document.getElementById("prevStepBtn");
+        const zoomNextBtn = document.getElementById("zoomNextStepBtn");
+
         startBtn.innerHTML = `<span class="btn-icon">▶</span><span>Start Simulation</span>`;
         startBtn.title = "Send animated packet through network";
         startBtn.disabled = false;
         nextBtn.innerHTML = `<span>&rarr; Next Step</span>`;
         nextBtn.title = "Step forward one hop";
-        nextBtn.classList.remove("ready-pulse");
+        nextBtn.classList.remove("ready-pulse", "btn-delivered");
         prevBtn.disabled = true;
+
+        if (zoomNextBtn) {
+            zoomNextBtn.classList.remove("btn-delivered");
+            zoomNextBtn.innerHTML = `<span class="btn-icon">⏭</span><span class="btn-text">Next Step</span>`;
+        }
 
         const guideText = document.getElementById("simGuideText");
         if (guideText) {
@@ -1657,11 +1753,20 @@
                 const curY = fromPos.y + (toPos.y - fromPos.y) * ease;
 
                 element.setAttribute("transform", `translate(${curX}, ${curY})`);
+                const zoomPacket = document.querySelector("#zoomNetworkSvg #packetToken");
+                if (zoomPacket) {
+                    zoomPacket.setAttribute("transform", `translate(${curX}, ${curY})`);
+                    zoomPacket.style.display = "block";
+                }
 
                 if (progress < 1) {
                     requestAnimationFrame(frame);
                 } else {
                     element.setAttribute("transform", `translate(${toPos.x}, ${toPos.y})`);
+                    if (zoomPacket) {
+                        zoomPacket.setAttribute("transform", `translate(${toPos.x}, ${toPos.y})`);
+                        zoomPacket.style.display = "block";
+                    }
                     resolve();
                 }
             }
@@ -1956,20 +2061,739 @@
             });
         }
 
-        // AI Tutor Modal
-        const modal = document.getElementById("aiTutorModal");
-        document.getElementById("aiTutorBtn").addEventListener("click", () => {
-            modal.style.display = "flex";
-        });
-        document.getElementById("closeTutorModalBtn").addEventListener("click", () => {
-            modal.style.display = "none";
-        });
-        document.getElementById("closeTutorModalBottomBtn").addEventListener("click", () => {
-            modal.style.display = "none";
-        });
-        modal.addEventListener("click", e => {
-            if (e.target === modal) modal.style.display = "none";
-        });
+        // ====================================================================
+        // AI TUTOR CONTROLLER (Gemini Live & Built-in TOC/CN Knowledge Engine)
+        // ====================================================================
+
+        const GEMINI_CONFIG = {
+            DEFAULT_KEY: "", // Zero hardcoded secrets! Credentials kept in backend / Vercel env
+            MODELS: ["gemini-flash-lite-latest", "gemini-3.8-flash", "gemini-flash-latest"],
+            STORAGE_KEY: "cn_gemini_api_key"
+        };
+
+        let tutorChatHistory = [];
+        let isTutorThinking = false;
+
+        function getActiveApiKey() {
+            const saved = localStorage.getItem(GEMINI_CONFIG.STORAGE_KEY);
+            if (saved && saved.trim()) return saved.trim();
+            return GEMINI_CONFIG.DEFAULT_KEY;
+        }
+
+        function updateAiBadge(mode) {
+            const badge = document.querySelector(".ai-badge-live");
+            if (!badge) return;
+            if (mode === "gemini") {
+                badge.textContent = "Gemini Live";
+                badge.style.color = "var(--accent-green)";
+                badge.style.borderColor = "rgba(0, 230, 118, 0.35)";
+            } else {
+                badge.textContent = "Offline Tutor";
+                badge.style.color = "var(--accent-cyan)";
+                badge.style.borderColor = "rgba(0, 240, 255, 0.35)";
+            }
+        }
+
+        function escapeTutorHtml(str) {
+            if (!str) return "";
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function formatTutorMarkdown(md) {
+            if (!md) return "";
+            let text = md.trim();
+
+            // Clean LaTeX dollar signs and arrow symbols
+            text = text.replace(/\\rightarrow|\\to/g, "→");
+            text = text.replace(/\$\$([^$]+)\$\$/g, "$1");
+            text = text.replace(/\$([^$]+)\$/g, "$1");
+
+            // Extract and protect code blocks
+            const codeBlocks = [];
+            text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+                const idx = codeBlocks.length;
+                codeBlocks.push({ lang: lang || "text", code: escapeTutorHtml(code.trim()) });
+                return `__CODE_BLOCK_${idx}__`;
+            });
+
+            // Inline code
+            text = text.replace(/`([^`]+)`/g, (m, c) => `<code>${escapeTutorHtml(c)}</code>`);
+
+            // Bold and Italic
+            text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+            text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+
+            // Blockquotes
+            text = text.replace(/^>\s*(.+)$/gm, "<blockquote>$1</blockquote>");
+
+            // Paragraphs and lists
+            const lines = text.split("\n");
+            const result = [];
+            let inList = false;
+
+            for (let line of lines) {
+                const trimmed = line.trim();
+                if (/^[-*•]\s+(.+)/.test(trimmed)) {
+                    if (!inList) {
+                        result.push("<ul>");
+                        inList = true;
+                    }
+                    const item = trimmed.replace(/^[-*•]\s+/, "");
+                    result.push(`<li>${item}</li>`);
+                } else if (/^\d+\.\s+(.+)/.test(trimmed)) {
+                    if (!inList) {
+                        result.push("<ol>");
+                        inList = true;
+                    }
+                    const item = trimmed.replace(/^\d+\.\s+/, "");
+                    result.push(`<li>${item}</li>`);
+                } else {
+                    if (inList) {
+                        result.push("</ul>");
+                        inList = false;
+                    }
+                    if (trimmed.length > 0) {
+                        result.push(`<p>${line}</p>`);
+                    }
+                }
+            }
+            if (inList) result.push("</ul>");
+
+            let html = result.join("");
+
+            // Reinsert code blocks
+            codeBlocks.forEach((cb, idx) => {
+                const blockHtml = `<pre><code>${cb.code}</code></pre>`;
+                html = html.replace(`__CODE_BLOCK_${idx}__`, blockHtml);
+            });
+
+            return html;
+        }
+
+        function getLiveSimulationContext() {
+            const activeNodes = Object.values(nodes).filter(n => n.status === "ACTIVE").map(n => n.id);
+            const failedNodes = Object.values(nodes).filter(n => n.status === "FAILED").map(n => n.id);
+            const activeLinks = links.filter(l => l.status === "ACTIVE").map(l => `${l.source}-${l.target}(w:${l.weight})`);
+            const failedLinks = links.filter(l => l.status === "FAILED").map(l => `${l.source}-${l.target}`);
+
+            return {
+                activeRoute: stats.activeRoute ? stats.activeRoute.join(" → ") : "Unreachable (No Active Path)",
+                activeCost: stats.activeCost !== null && stats.activeCost !== Infinity ? stats.activeCost : "∞ (Partitioned)",
+                isPartitioned: stats.isPartitioned,
+                activeNodes,
+                failedNodes,
+                activeLinks,
+                failedLinks,
+                packetsSent: stats.packetsSent,
+                packetsDelivered: stats.packetsDelivered,
+                packetsDropped: stats.packetsDropped,
+                currentStep: stats.currentStep
+            };
+        }
+
+        function generateOfflineTutorResponse(query, ctx) {
+            const q = query.toLowerCase();
+
+            // 1. Dijkstra / Shortest Path
+            if (q.includes("dijkstra") || q.includes("shortest") || q.includes("spf") || q.includes("algorithm")) {
+                return `**🎯 Core Idea:** Dijkstra calculates the lowest total metric path from source **PC** to **Server**.
+• **Algorithm:** Greedily relaxes edge weights: \`dist[v] = min(dist[v], dist[u] + weight)\`.
+• **Optimal Normal Route:** **PC → R1 → R2 → R4 → Server** (Total Cost = **6**).
+• **Live Simulator State:** Route: \`${ctx.activeRoute}\` • Cost: **${ctx.activeCost}** (${ctx.isPartitioned ? "❌ Unreachable" : "✅ Healthy"}).`;
+            }
+
+            // 2. R2 Failure & Automatic Recovery
+            if (q.includes("r2") || q.includes("failover") || q.includes("recover") || q.includes("alternate") || q.includes("backup")) {
+                return `**🎯 Core Idea:** Automatic failover reroutes traffic instantly when Router **R2** crashes.
+• **Failure Trigger:** Ingress link \`R1-R2\` or egress link \`R2-R4\` goes down.
+• **Dynamic Recalculation:** Dijkstra activates backup router **R3**: **PC → R1 → R3 → R4 → Server** (Cost = **7**).
+• **Key Takeaway:** Zero packet loss with automated Link-State convergence!`;
+            }
+
+            // 3. Packet Drop & Unreachable States
+            if (q.includes("drop") || q.includes("unreach") || q.includes("loss") || q.includes("lost") || q.includes("partition")) {
+                return `**🎯 Core Idea:** Packets drop when **no valid connected path** exists to Server.
+• **Root Causes:** Both core routers (**R2 & R3**) down, gateway (**R1**) down, or aggregator (**R4**) down.
+• **SPF Reaction:** Dijkstra evaluates metric as **∞**; simulator halts forwarding and drops packet.
+• **Live Stats:** Delivered: **${ctx.packetsDelivered}** • Dropped: **${ctx.packetsDropped}** (Status: ${ctx.isPartitioned ? "⚠️ Partitioned" : "Active"}).`;
+            }
+
+            // 4. Code & Animation
+            if (q.includes("code") || q.includes("animation") || q.includes("how does") || q.includes("javascript") || q.includes("logic")) {
+                return `**🎯 Core Idea:** Modular event-driven JavaScript powers the SVG network simulator.
+• **State Machine:** Nodes & links are stored as graph objects evaluated dynamically by \`dijkstra()\`.
+• **Step Engine:** \`stepNextHop()\` advances discrete hops and animates SVG coordinate transforms.
+• **Interactive Canvas:** Direct clicking on routers or link lines triggers fault injection.`;
+            }
+
+            // 5. Link Weights
+            if (q.includes("weight") || q.includes("metric") || q.includes("cost") || q.includes("delay")) {
+                return `**🎯 Core Idea:** Lower link weight represents higher bandwidth / lower latency.
+• **Why R2 Beats R3:** \`R1-R2\` has cost **2**, while \`R1-R3\` has cost **3**.
+• **Path Comparison:** Via R2 = cost **6** (preferred) vs Via R3 = cost **7** (backup).
+• **Customization:** Modify weights in the adjacency text panel to see routes update live!`;
+            }
+
+            // 6. Current Simulator State
+            if (q.includes("current") || q.includes("my") || q.includes("status") || q.includes("state") || q.includes("now")) {
+                const failedR = ctx.failedNodes.length ? ctx.failedNodes.join(", ") : "None (All online)";
+                return `**🎯 Core Idea:** Real-time telemetry snapshot of your network simulator:
+• **Active Route:** \`${ctx.activeRoute}\` (Total Metric: **${ctx.activeCost}**)
+• **Failed Hardware:** Routers: **${failedR}** • Partitioned: **${ctx.isPartitioned ? "YES ❌" : "NO ✅"}**
+• **Traffic Record:** Sent: **${ctx.packetsSent}** | Delivered: **${ctx.packetsDelivered}** | Dropped: **${ctx.packetsDropped}**`;
+            }
+
+            // 7. General Networking Concepts
+            if (q.includes("router") || q.includes("gateway") || q.includes("ttl") || q.includes("mtu") || q.includes("ospf")) {
+                return `**🎯 Core Idea:** Key networking building blocks explained:
+• **Router:** Layer 3 device routing packets using shortest path algorithms (OSPF/Dijkstra).
+• **Default Gateway (R1):** Ingress router connecting source PC to external network.
+• **TTL (Time-To-Live):** Hop limit counter decremented per hop to stop infinite loops.
+• **Convergence:** Time taken for routers to discover topology changes and recalculate routes.`;
+            }
+
+            // Default fallback response
+            return `**🎯 Core Idea:** Dynamic Link-State Routing & Recovery Simulator:
+• **Shortest Path:** \`${ctx.activeRoute}\` (Total Cost: **${ctx.activeCost}**).
+• **Quick Questions:**
+  - *"How does Dijkstra find the path?"*
+  - *"What happens when R2 fails?"*
+  - *"Why are packets dropped?"*`;
+        }
+
+        async function callGeminiApiForTutor(apiKey, userQuestion, context) {
+            const systemPrompt = `You are a concise, high-yield Computer Networks AI Tutor.
+The student wants SHORT, CLEAR, and DIRECT answers with only the MOST IMPORTANT points in an easily understandable format.
+
+STRICT FORMAT RULES:
+1. MAXIMUM 3 TO 4 BULLET POINTS TOTAL.
+2. Structure your response EXACTLY like this:
+   **🎯 Core Idea:** One brief sentence explaining the primary concept.
+   • **Key Point 1:** Short bullet with bold term (**Dijkstra**, **Failover**, etc.).
+   • **Key Point 2:** Short bullet with the mechanism or metric.
+   • **Live State:** One short line linking to current simulation: Route \`${context.activeRoute}\`, Cost \`${context.activeCost}\`.
+3. NEVER write long paragraphs, preambles, or filler ("Hello student!", "Certainly!", etc.).
+4. NO LaTeX dollar signs ($); use plain text and arrows (→).
+5. Maximum length: 70-90 words.`;
+
+            const historyContents = tutorChatHistory.slice(-2).map(m => ({
+                role: m.role === "assistant" ? "model" : "user",
+                parts: [{ text: m.content }]
+            }));
+
+            const contents = [
+                ...historyContents,
+                { role: "user", parts: [{ text: userQuestion }] }
+            ];
+
+            let lastErr = null;
+            for (const model of GEMINI_CONFIG.MODELS) {
+                try {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                    const res = await fetch(url, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            system_instruction: { parts: [{ text: systemPrompt }] },
+                            contents: contents,
+                            generationConfig: {
+                                temperature: 0.25,
+                                maxOutputTokens: 200
+                            }
+                        })
+                    });
+
+                    if (!res.ok) {
+                        const errBody = await res.text();
+                        throw new Error(`${model} (${res.status}): ${errBody.slice(0, 100)}`);
+                    }
+
+                    const data = await res.json();
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text && text.trim()) {
+                        return text.trim();
+                    }
+                } catch (err) {
+                    console.warn(`[AI Tutor] Model ${model} unavailable:`, err.message);
+                    lastErr = err;
+                }
+            }
+
+            throw lastErr || new Error("All candidate Gemini models failed");
+        }
+
+        function appendTutorUserMsg(text) {
+            const thread = document.getElementById("tutorChatThread");
+            if (!thread) return;
+
+            const msgDiv = document.createElement("div");
+            msgDiv.className = "chat-msg msg-user";
+            msgDiv.innerHTML = `
+                <div class="msg-avatar">👤</div>
+                <div class="msg-bubble">
+                    <div class="msg-author">You (Student)</div>
+                    <div class="msg-body"><p>${escapeTutorHtml(text)}</p></div>
+                </div>
+            `;
+            thread.appendChild(msgDiv);
+            thread.scrollTop = thread.scrollHeight;
+        }
+
+        function appendTutorThinking() {
+            const thread = document.getElementById("tutorChatThread");
+            if (!thread) return null;
+
+            const thinkingDiv = document.createElement("div");
+            thinkingDiv.className = "chat-msg msg-ai";
+            thinkingDiv.id = "tutorThinkingIndicator";
+            thinkingDiv.innerHTML = `
+                <div class="msg-avatar">🤖</div>
+                <div class="msg-bubble">
+                    <div class="msg-author">AI Tutor</div>
+                    <div class="msg-body">
+                        <div class="ai-thinking-row">
+                            <span style="font-size:0.75rem; color:var(--text-muted);">Analyzing network topology &amp; generating answer...</span>
+                            <div class="ai-thinking-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            thread.appendChild(thinkingDiv);
+            thread.scrollTop = thread.scrollHeight;
+            return thinkingDiv;
+        }
+
+        function replaceTutorThinkingWithAnswer(rawMarkdown, isLiveGemini) {
+            const thinking = document.getElementById("tutorThinkingIndicator");
+            const thread = document.getElementById("tutorChatThread");
+            if (!thread) return;
+
+            const formattedHtml = formatTutorMarkdown(rawMarkdown);
+            const sourceBadge = isLiveGemini
+                ? `<span style="font-size: 0.62rem; color: var(--accent-green); margin-left: 6px;">● Gemini Live</span>`
+                : `<span style="font-size: 0.62rem; color: var(--accent-cyan); margin-left: 6px;">● Offline Tutor</span>`;
+
+            const replyDiv = document.createElement("div");
+            replyDiv.className = "chat-msg msg-ai";
+            replyDiv.innerHTML = `
+                <div class="msg-avatar">🤖</div>
+                <div class="msg-bubble">
+                    <div class="msg-author">AI Tutor ${sourceBadge}</div>
+                    <div class="msg-body">${formattedHtml}</div>
+                </div>
+            `;
+
+            if (thinking) {
+                thinking.replaceWith(replyDiv);
+            } else {
+                thread.appendChild(replyDiv);
+            }
+
+            thread.scrollTop = thread.scrollHeight;
+        }
+
+        async function handleTutorSubmit(questionOverride) {
+            const input = document.getElementById("tutorQuestionInput");
+            const sendBtn = document.getElementById("tutorSendBtn");
+
+            const q = (questionOverride !== undefined)
+                ? questionOverride.trim()
+                : (input ? input.value.trim() : "");
+
+            if (!q || isTutorThinking) return;
+
+            if (input && questionOverride === undefined) {
+                input.value = "";
+            }
+
+            // Append user message
+            appendTutorUserMsg(q);
+            tutorChatHistory.push({ role: "user", content: q });
+
+            // Show thinking
+            isTutorThinking = true;
+            if (sendBtn) sendBtn.disabled = true;
+            appendTutorThinking();
+
+            const ctx = getLiveSimulationContext();
+            const apiKey = getActiveApiKey();
+            let aiReply = "";
+            let isLive = false;
+
+            if (apiKey) {
+                try {
+                    aiReply = await callGeminiApiForTutor(apiKey, q, ctx);
+                    isLive = true;
+                    updateAiBadge("gemini");
+                } catch (geminiErr) {
+                    console.warn("[AI Tutor] Direct Gemini error, falling back to backend or offline:", geminiErr.message);
+                }
+            }
+
+            // If no user-entered key or direct call failed, query backend / Vercel API
+            if (!aiReply) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 6000);
+                    const resp = await fetch("/api/chat", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            message: q,
+                            simulatorContext: ctx,
+                            history: tutorChatHistory.slice(-4)
+                        }),
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data && data.reply) {
+                            aiReply = data.reply;
+                            isLive = data.mode === "gemini" || data.mode === "openai";
+                            updateAiBadge(isLive ? "gemini" : "offline");
+                        }
+                    }
+                } catch (apiErr) {
+                    // Backend unavailable or offline; proceed to built-in engine
+                }
+            }
+
+            // High-yield offline fallback if neither direct key nor backend responded
+            if (!aiReply) {
+                aiReply = generateOfflineTutorResponse(q, ctx);
+                updateAiBadge("offline");
+            }
+
+            replaceTutorThinkingWithAnswer(aiReply, isLive);
+            tutorChatHistory.push({ role: "assistant", content: aiReply });
+
+            isTutorThinking = false;
+            if (sendBtn) sendBtn.disabled = false;
+            if (input) input.focus();
+        }
+
+        function setupAiTutor() {
+            const modal = document.getElementById("aiTutorModal");
+            const openBtn = document.getElementById("aiTutorBtn");
+            const closeBtn = document.getElementById("closeTutorModalBtn");
+            const toggleKeyBtn = document.getElementById("toggleApiKeyBtn");
+            const keyDrawer = document.getElementById("apiKeyConfigDrawer");
+            const keyInput = document.getElementById("geminiApiKeyInput");
+            const saveKeyBtn = document.getElementById("saveApiKeyBtn");
+            const clearKeyBtn = document.getElementById("clearApiKeyBtn");
+            const sendBtn = document.getElementById("tutorSendBtn");
+            const input = document.getElementById("tutorQuestionInput");
+            const chips = document.querySelectorAll(".prompt-chip");
+
+            // Open Modal
+            if (openBtn && modal) {
+                openBtn.addEventListener("click", () => {
+                    modal.style.display = "flex";
+                    updateAiBadge(getActiveApiKey() ? "gemini" : "offline");
+                    if (input) {
+                        setTimeout(() => input.focus(), 150);
+                    }
+                });
+            }
+
+            // Close Modal
+            if (closeBtn && modal) {
+                closeBtn.addEventListener("click", () => {
+                    modal.style.display = "none";
+                });
+            }
+
+            if (modal) {
+                modal.addEventListener("click", (e) => {
+                    if (e.target === modal) modal.style.display = "none";
+                });
+            }
+
+            window.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && modal && modal.style.display !== "none") {
+                    modal.style.display = "none";
+                }
+            });
+
+            // Toggle API Key Drawer
+            if (toggleKeyBtn && keyDrawer) {
+                toggleKeyBtn.addEventListener("click", () => {
+                    const isHidden = keyDrawer.style.display === "none";
+                    keyDrawer.style.display = isHidden ? "flex" : "none";
+                    if (isHidden && keyInput) {
+                        const curKey = localStorage.getItem(GEMINI_CONFIG.STORAGE_KEY) || "";
+                        keyInput.value = curKey;
+                        keyInput.focus();
+                    }
+                });
+            }
+
+            // Save API Key
+            if (saveKeyBtn && keyInput) {
+                saveKeyBtn.addEventListener("click", () => {
+                    const val = keyInput.value.trim();
+                    if (val) {
+                        localStorage.setItem(GEMINI_CONFIG.STORAGE_KEY, val);
+                        updateAiBadge("gemini");
+                        if (keyDrawer) keyDrawer.style.display = "none";
+                        alert("Gemini API Key saved successfully! AI Tutor is now in Live mode.");
+                    } else {
+                        alert("Please enter a valid Gemini API key first.");
+                    }
+                });
+            }
+
+            // Clear API Key
+            if (clearKeyBtn && keyInput) {
+                clearKeyBtn.addEventListener("click", () => {
+                    localStorage.removeItem(GEMINI_CONFIG.STORAGE_KEY);
+                    keyInput.value = "";
+                    updateAiBadge("offline");
+                    alert("API Key cleared. AI Tutor will use built-in offline knowledge base.");
+                });
+            }
+
+            // Send Question on Button Click
+            if (sendBtn) {
+                sendBtn.addEventListener("click", () => handleTutorSubmit());
+            }
+
+            // Send Question on Enter Key (Shift+Enter for newline if multiline)
+            if (input) {
+                input.addEventListener("keydown", (e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleTutorSubmit();
+                    }
+                });
+            }
+
+            // Quick Prompt Chips
+            chips.forEach(chip => {
+                chip.addEventListener("click", () => {
+                    const qText = chip.dataset.question || chip.textContent;
+                    handleTutorSubmit(qText);
+                });
+            });
+
+            // Initialize badge state
+            updateAiBadge(getActiveApiKey() ? "gemini" : "offline");
+        }
+
+        setupAiTutor();
+
+        // ====================================================================
+        // ZOOM TOPOLOGY MODAL CONTROLLER
+        // ====================================================================
+
+        function syncZoomSvg() {
+            const mainSvg = document.getElementById("networkSvg");
+            const zoomSvg = document.getElementById("zoomNetworkSvg");
+            if (!mainSvg || !zoomSvg) return;
+
+            zoomSvg.innerHTML = mainSvg.innerHTML;
+            const vb = mainSvg.getAttribute("viewBox");
+            if (vb) zoomSvg.setAttribute("viewBox", vb);
+
+            setupZoomNodeInteractions();
+            setupZoomLinkInteractions();
+        }
+
+        function setupZoomLinkInteractions() {
+            const zoomSvg = document.getElementById("zoomNetworkSvg");
+            if (!zoomSvg) return;
+
+            links.forEach(l => {
+                const g = zoomSvg.querySelector(`#linkItem-${l.id}`);
+                if (g) {
+                    g.onclick = (e) => {
+                        e.stopPropagation();
+                        toggleLinkState(l.id);
+                    };
+                }
+            });
+        }
+
+        function setupZoomNodeInteractions() {
+            const zoomSvg = document.getElementById("zoomNetworkSvg");
+            const tooltip = document.getElementById("zoomHoverTooltip");
+            if (!zoomSvg) return;
+
+            Object.keys(nodes).forEach(nodeId => {
+                const g = zoomSvg.querySelector(`#nodeGroup-${nodeId}`);
+                if (!g) return;
+
+                g.onclick = (e) => {
+                    e.stopPropagation();
+                    sound.init();
+                    if (nodes[nodeId].status === "ACTIVE") {
+                        failRouter(nodeId);
+                    } else {
+                        nodes[nodeId].status = "ACTIVE";
+                        sound.playSuccess();
+                        addLogStep(simState.currentHopIndex, nodeId, "REPAIR", "ACTIVE", `Node ${nodeId} hardware repaired.`, "success");
+                        handleTopologyUpdate();
+                    }
+                    syncZoomSvg();
+                    updateZoomTelemetry();
+                };
+
+                if (tooltip) {
+                    g.onmouseenter = () => {
+                        const n = nodes[nodeId];
+                        if (!n) return;
+                        tooltip.innerHTML = `
+                            <strong>${n.name || nodeId}</strong><br>
+                            <span>IP: ${n.ip || 'DHCP'}</span><br>
+                            <span>Role: ${n.role || 'Router'}</span><br>
+                            <span style="color: ${n.status === 'ACTIVE' ? 'var(--accent-green)' : 'var(--accent-red)'}">Status: ${n.status}</span>
+                        `;
+                        tooltip.style.display = "block";
+                    };
+                    g.onmousemove = (e) => {
+                        const vp = document.getElementById("zoomCanvasViewport");
+                        if (!vp) return;
+                        const rect = vp.getBoundingClientRect();
+                        tooltip.style.left = `${e.clientX - rect.left + 14}px`;
+                        tooltip.style.top = `${e.clientY - rect.top + 14}px`;
+                    };
+                    g.onmouseleave = () => {
+                        tooltip.style.display = "none";
+                    };
+                }
+            });
+        }
+
+        function updateZoomTelemetry() {
+            const stepNum = document.getElementById("zoomStepBadgeNum");
+            const statusChip = document.getElementById("zoomStatusChip");
+            const routeText = document.getElementById("zoomActiveRouteText");
+            const costText = document.getElementById("zoomActiveCostText");
+
+            if (stepNum) stepNum.textContent = simState.currentHopIndex || 0;
+            if (routeText) {
+                routeText.textContent = stats.activeRoute ? stats.activeRoute.join(" → ") : "Unreachable (No Path)";
+            }
+            if (costText) {
+                costText.textContent = (stats.activeCost !== null && stats.activeCost !== Infinity) ? stats.activeCost : "∞";
+            }
+            if (statusChip) {
+                if (simState.isComplete) {
+                    statusChip.className = "telemetry-chip healthy";
+                    statusChip.textContent = "✓ DELIVERED";
+                } else if (stats.isPartitioned) {
+                    statusChip.className = "telemetry-chip failed";
+                    statusChip.textContent = "UNREACHABLE";
+                } else if (nodes.R2 && nodes.R2.status === "FAILED") {
+                    statusChip.className = "telemetry-chip degraded";
+                    statusChip.textContent = "FAILOVER";
+                } else {
+                    statusChip.className = "telemetry-chip healthy";
+                    statusChip.textContent = "HEALTHY";
+                }
+            }
+        }
+
+        function setupZoomModal() {
+            const modal = document.getElementById("zoomTopologyModal");
+            const openBtn = document.getElementById("zoomViewBtn");
+            const closeBtn = document.getElementById("closeZoomModalBtn");
+            const startBtn = document.getElementById("zoomStartSimBtn");
+            const nextBtn = document.getElementById("zoomNextStepBtn");
+            const prevBtn = document.getElementById("zoomPrevStepBtn");
+            const resetBtn = document.getElementById("zoomResetSimBtn");
+
+            function isZoomOpen() {
+                return modal && modal.style.display === "flex";
+            }
+
+            function openZoom() {
+                if (!modal) return;
+                modal.style.display = "flex";
+                syncZoomSvg();
+                updateZoomTelemetry();
+            }
+
+            function closeZoom() {
+                if (!modal) return;
+                modal.style.display = "none";
+                const tooltip = document.getElementById("zoomHoverTooltip");
+                if (tooltip) tooltip.style.display = "none";
+            }
+
+            if (openBtn) openBtn.addEventListener("click", openZoom);
+            if (closeBtn) closeBtn.addEventListener("click", closeZoom);
+            if (modal) {
+                modal.addEventListener("click", (e) => {
+                    if (e.target === modal) closeZoom();
+                });
+            }
+
+            window.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && isZoomOpen()) {
+                    closeZoom();
+                }
+            });
+
+            // Control buttons inside zoom modal
+            if (startBtn) {
+                startBtn.addEventListener("click", () => {
+                    sound.init();
+                    initSimulation();
+                    syncZoomSvg();
+                    updateZoomTelemetry();
+                });
+            }
+
+            if (nextBtn) {
+                nextBtn.addEventListener("click", async () => {
+                    sound.init();
+                    await stepNextHop();
+                    syncZoomSvg();
+                    updateZoomTelemetry();
+                });
+            }
+
+            if (prevBtn) {
+                prevBtn.addEventListener("click", () => {
+                    sound.init();
+                    stepPrevHop();
+                    syncZoomSvg();
+                    updateZoomTelemetry();
+                });
+            }
+
+            if (resetBtn) {
+                resetBtn.addEventListener("click", () => {
+                    sound.init();
+                    resetSimulation();
+                    syncZoomSvg();
+                    updateZoomTelemetry();
+                });
+            }
+
+            // MutationObserver on networkSvg to automatically keep zoomSvg synced
+            const mainSvg = document.getElementById("networkSvg");
+            if (mainSvg && window.MutationObserver) {
+                const observer = new MutationObserver(() => {
+                    if (isZoomOpen()) {
+                        syncZoomSvg();
+                        updateZoomTelemetry();
+                    }
+                });
+                observer.observe(mainSvg, { childList: true, subtree: true, attributes: true });
+            }
+        }
+
+        setupZoomModal();
 
         // Theme Toggle
         const themeBtn = document.getElementById("themeToggleBtn");

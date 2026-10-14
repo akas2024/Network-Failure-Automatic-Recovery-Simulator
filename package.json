@@ -1,0 +1,17 @@
+{
+  "name": "network-failure-automatic-recovery-simulator",
+  "version": "1.0.0",
+  "description": "Interactive Network Failure and Automatic Recovery Simulator with Dijkstra SPF Algorithm and AI Tutor",
+  "scripts": {
+    "start": "node ai-tutor/backend/server.js"
+  },
+  "keywords": [
+    "network-simulator",
+    "dijkstra-algorithm",
+    "automatic-recovery",
+    "fault-tolerance",
+    "computer-networks"
+  ],
+  "author": "akas2024",
+  "license": "MIT"
+}
