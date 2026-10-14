@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+ai-tutor/backend/node_modules/
+
+# Environment Variables & Secrets
+.env
+*.env
+ai-tutor/backend/.env
+!.env.example
+
+# Binaries & Executables
+*.exe
+ngrok
+ngrok.exe
+ngrok.cmd
+
+# OS generated files
+Thumbs.db
+.DS_Store
+
+# Editor directories
+.vscode/
+.idea/

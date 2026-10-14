@@ -1,0 +1,19 @@
+{
+  "name": "ai-tutor-backend",
+  "version": "1.0.0",
+  "description": "Secure AI Tutor backend for CFG & PDA Simulator",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "tunnel": "node tunnel.js",
+    "tunnel:free": "npx localtunnel --port 5000"
+  },
+  "dependencies": {
+    "@ngrok/ngrok": "^1.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

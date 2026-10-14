@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tutor - Theory of Computation Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="chat.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            background: #0e141e;
+            font-family: 'Inter', sans-serif;
+        }
+        .demo-container {
+            text-align: center;
+            max-width: 500px;
+            background: #16212f;
+            border: 1px solid #2b3d52;
+            padding: 30px;
+            border-radius: 12px;
+        }
+        .demo-container h1 {
+            color: #ffffff;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        .demo-container p {
+            color: #94a3b8;
+            font-size: 13px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .demo-actions {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="demo-container">
+        <h1>🤖 AI Tutor Component Preview</h1>
+        <p>This is a standalone test harness for the AI Tutor chat widget. In the main application, the AI Tutor is launched via the header button to the left of the theme toggle.</p>
+        <div class="demo-actions">
+            <button id="aiTutorBtn" class="ai-tutor-btn">
+                <span class="ai-tutor-icon">🤖</span>
+                <span class="ai-tutor-label">AI Tutor</span>
+                <span class="ai-tutor-pulse-dot"></span>
+            </button>
+            <button id="themeToggleBtn" class="theme-toggle-btn" onclick="document.body.classList.toggle('light-mode')">
+                <span class="theme-icon">☀️</span>
+                <span class="theme-label">Toggle Theme</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- AI Tutor Script -->
+    <script src="chat.js"></script>
+    <script>
+        // Open automatically on standalone demo page
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (window.aiTutor) window.aiTutor.open();
+            }, 300);
+        });
+    </script>
+</body>
+</html>

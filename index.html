@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Failure & Automatic Recovery Simulator | Computer Networks</title>
+    <meta name="description" content="Interactive Computer Networks simulation demonstrating dynamic link-state routing, Dijkstra shortest path calculation, router/link failure detection, automatic alternate route failover, and unreachable network states.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+
+    <!-- TOP APPLICATION HEADER (Matching user's reference) -->
+    <header class="app-header">
+        <div class="header-left">
+            <div class="brand-box">
+                <span class="brand-letter">[N]</span>
+            </div>
+            <div class="brand-text-block">
+                <div class="brand-title-line">
+                    <h1 class="brand-title">Network Failure &amp; Automatic Recovery Simulator</h1>
+                    <span class="subject-badge">COMPUTER NETWORKS</span>
+                </div>
+                <p class="brand-subtitle">Simulate link-state routing, Dijkstra shortest path, router/link failures &amp; automatic alternate route recovery</p>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <button id="aiTutorBtn" class="header-pill-btn" title="View educational networking explanation">
+                <span class="btn-icon">🤖</span>
+                <span>AI Tutor / Guide</span>
+            </button>
+
+            <button id="themeToggleBtn" class="header-pill-btn" title="Toggle Light / Dark mode">
+                <span class="btn-icon" id="themeIcon">☀️</span>
+                <span id="themeLabel">Light Mode</span>
+            </button>
+
+            <div class="header-status-pill" id="engineStatusPill">
+                <span class="status-dot healthy" id="engineStatusDot"></span>
+                <span id="engineStatusText">Network Healthy</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN TWO-COLUMN WORKSPACE (Matching exact proportions from screenshot) -->
+    <main class="main-layout">
+
+        <!-- =========================================================================
+             LEFT COLUMN: Simulation & Live Topology Diagram + Machine Dashboard + Log
+             ========================================================================= -->
+        <section class="column-left">
+
+            <!-- TOP CONTAINER CARD: Simulation & Live Topology -->
+            <div class="card-container">
+                <div class="card-header">
+                    <div class="header-left-group">
+                        <span class="card-icon text-yellow">⚡</span>
+                        <h2 class="card-title">Simulation &amp; Live Network Topology</h2>
+                    </div>
+                    <div class="header-right-group">
+                        <span class="step-badge" id="stepCounterBadge">Step <strong id="stepBadgeNum">0</strong></span>
+                    </div>
+                </div>
+
+                <div class="card-body-split">
+                    <!-- SUB-CARD LEFT: Live Topology Diagram -->
+                    <div class="sub-panel sub-panel-topology">
+                        <div class="sub-panel-header">
+                            <div class="sub-header-title">
+                                <span class="sub-icon">🔗</span>
+                                <span>LIVE NETWORK TOPOLOGY GRAPH</span>
+                            </div>
+                            <span class="sub-badge" id="topologySubBadge">Real-time SPF transition</span>
+                        </div>
+
+                        <!-- SVG TOPOLOGY CANVAS (640x400) -->
+                        <div class="canvas-viewport" id="canvasViewport">
+                            <svg id="networkSvg" viewBox="0 0 640 400" preserveAspectRatio="xMidYMid meet">
+                                <defs>
+                                    <!-- Background grid pattern -->
+                                    <pattern id="dotGrid" width="24" height="24" patternUnits="userSpaceOnUse">
+                                        <circle cx="12" cy="12" r="1" fill="rgba(148, 163, 184, 0.12)"/>
+                                    </pattern>
+
+                                    <!-- Glowing filters for states/nodes -->
+                                    <filter id="glowCyan" x="-50%" y="-50%" width="200%" height="200%">
+                                        <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+                                        <feMerge>
+                                            <feMergeNode in="blur"/>
+                                            <feMergeNode in="SourceGraphic"/>
+                                        </feMerge>
+                                    </filter>
+
+                                    <filter id="glowGreen" x="-50%" y="-50%" width="200%" height="200%">
+                                        <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+                                        <feMerge>
+                                            <feMergeNode in="blur"/>
+                                            <feMergeNode in="SourceGraphic"/>
+                                        </feMerge>
+                                    </filter>
+
+                                    <filter id="glowPurple" x="-50%" y="-50%" width="200%" height="200%">
+                                        <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+                                        <feMerge>
+                                            <feMergeNode in="blur"/>
+                                            <feMergeNode in="SourceGraphic"/>
+                                        </feMerge>
+                                    </filter>
+
+                                    <filter id="glowRed" x="-50%" y="-50%" width="200%" height="200%">
+                                        <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur"/>
+                                        <feMerge>
+                                            <feMergeNode in="blur"/>
+                                            <feMergeNode in="SourceGraphic"/>
+                                        </feMerge>
+                                    </filter>
+
+                                    <!-- Active Flow Dash Gradient -->
+                                    <linearGradient id="flowGrad" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stop-color="#00f5ff"/>
+                                        <stop offset="50%" stop-color="#3b82f6"/>
+                                        <stop offset="100%" stop-color="#00f5ff"/>
+                                    </linearGradient>
+                                </defs>
+
+                                <!-- Grid Background -->
+                                <rect width="640" height="400" fill="url(#dotGrid)"/>
+
+                                <!-- LINKS GROUP -->
+                                <g id="linksGroup">
+                                    <!-- Link PC - R1 (Weight: 1) -->
+                                    <g class="link-item" id="linkItem-PC-R1" data-link="PC-R1">
+                                        <line x1="70" y1="200" x2="190" y2="200" class="base-line"/>
+                                        <line x1="70" y1="200" x2="190" y2="200" class="active-line" id="flow-PC-R1"/>
+                                        <g class="weight-tag" transform="translate(130, 200)">
+                                            <rect x="-18" y="-11" width="36" height="22" rx="11" class="weight-rect"/>
+                                            <text x="0" y="4" text-anchor="middle" class="weight-text">1</text>
+                                        </g>
+                                        <g class="broken-tag" id="broken-PC-R1" style="display: none;">
+                                            <circle cx="130" cy="200" r="11" class="broken-circle"/>
+                                            <text x="130" y="204" text-anchor="middle" class="broken-x">✕</text>
+                                        </g>
+                                    </g>
+
+                                    <!-- Link R1 - R2 (Weight: 2) -->
+                                    <g class="link-item" id="linkItem-R1-R2" data-link="R1-R2">
+                                        <line x1="190" y1="200" x2="340" y2="80" class="base-line"/>
+                                        <line x1="190" y1="200" x2="340" y2="80" class="active-line" id="flow-R1-R2"/>
+                                        <g class="weight-tag" transform="translate(265, 140)">
+                                            <rect x="-18" y="-11" width="36" height="22" rx="11" class="weight-rect"/>
+                                            <text x="0" y="4" text-anchor="middle" class="weight-text">2</text>
+                                        </g>
+                                        <g class="broken-tag" id="broken-R1-R2" style="display: none;">
+                                            <circle cx="265" cy="140" r="11" class="broken-circle"/>
+                                            <text x="265" y="144" text-anchor="middle" class="broken-x">✕</text>
+                                        </g>
+                                    </g>
+
+                                    <!-- Link R1 - R3 (Weight: 3) -->
+                                    <g class="link-item" id="linkItem-R1-R3" data-link="R1-R3">
+                                        <line x1="190" y1="200" x2="340" y2="320" class="base-line"/>
+                                        <line x1="190" y1="200" x2="340" y2="320" class="active-line" id="flow-R1-R3"/>
+                                        <g class="weight-tag" transform="translate(265, 260)">
+                                            <rect x="-18" y="-11" width="36" height="22" rx="11" class="weight-rect"/>
+                                            <text x="0" y="4" text-anchor="middle" class="weight-text">3</text>
+                                        </g>
+                                        <g class="broken-tag" id="broken-R1-R3" style="display: none;">
+                                            <circle cx="265" cy="260" r="11" class="broken-circle"/>
+                                            <text x="265" y="264" text-anchor="middle" class="broken-x">✕</text>
+                                        </g>
+                                    </g>
+
+                                    <!-- Link R2 - R4 (Weight: 2) -->
+                                    <g class="link-item" id="linkItem-R2-R4" data-link="R2-R4">
+                                        <line x1="340" y1="80" x2="470" y2="200" class="base-line"/>
+                                        <line x1="340" y1="80" x2="470" y2="200" class="active-line" id="flow-R2-R4"/>
+                                        <g class="weight-tag" transform="translate(405, 140)">
+                                            <rect x="-18" y="-11" width="36" height="22" rx="11" class="weight-rect"/>
+                                            <text x="0" y="4" text-anchor="middle" class="weight-text">2</text>
+                                        </g>
+                                        <g class="broken-tag" id="broken-R2-R4" style="display: none;">
+                                            <circle cx="405" cy="140" r="11" class="broken-circle"/>
+                                            <text x="405" y="144" text-anchor="middle" class="broken-x">✕</text>
+                                        </g>
+                                    </g>
+
+                                    <!-- Link R3 - R4 (Weight: 2) -->
+                                    <g class="link-item" id="linkItem-R3-R4" data-link="R3-R4">
+                                        <line x1="340" y1="320" x2="470" y2="200" class="base-line"/>
+                                        <line x1="340" y1="320" x2="470" y2="200" class="active-line" id="flow-R3-R4"/>
+                                        <g class="weight-tag" transform="translate(405, 260)">
+                                            <rect x="-18" y="-11" width="36" height="22" rx="11" class="weight-rect"/>
+                                            <text x="0" y="4" text-anchor="middle" class="weight-text">2</text>
+                                        </g>
+                                        <g class="broken-tag" id="broken-R3-R4" style="display: none;">
+                                            <circle cx="405" cy="260" r="11" class="broken-circle"/>
+                                            <text x="405" y="264" text-anchor="middle" class="broken-x">✕</text>
+                                        </g>
+                                    </g>
+
+                                    <!-- Link R4 - Server (Weight: 1) -->
+                                    <g class="link-item" id="linkItem-R4-Server" data-link="R4-Server">
+                                        <line x1="470" y1="200" x2="580" y2="200" class="base-line"/>
+                                        <line x1="470" y1="200" x2="580" y2="200" class="active-line" id="flow-R4-Server"/>
+                                        <g class="weight-tag" transform="translate(525, 200)">
+                                            <rect x="-18" y="-11" width="36" height="22" rx="11" class="weight-rect"/>
+                                            <text x="0" y="4" text-anchor="middle" class="weight-text">1</text>
+                                        </g>
+                                        <g class="broken-tag" id="broken-R4-Server" style="display: none;">
+                                            <circle cx="525" cy="200" r="11" class="broken-circle"/>
+                                            <text x="525" y="204" text-anchor="middle" class="broken-x">✕</text>
+                                        </g>
+                                    </g>
+                                </g>
+
+                                <!-- PACKET ANIMATION ELEMENT -->
+                                <g id="packetToken" style="display: none;" transform="translate(70, 200)">
+                                    <circle cx="0" cy="0" r="12" class="packet-halo"/>
+                                    <circle cx="0" cy="0" r="6.5" class="packet-core"/>
+                                    <rect x="-14" y="-23" width="28" height="12" rx="3" class="packet-label-bg"/>
+                                    <text x="0" y="-15" text-anchor="middle" class="packet-label-text">IP</text>
+                                </g>
+
+                                <!-- DROP MARKER (Shown on unreachable) -->
+                                <g id="dropToken" style="display: none;" transform="translate(0, 0)">
+                                    <circle cx="0" cy="0" r="18" class="drop-pulse-ring"/>
+                                    <circle cx="0" cy="0" r="10" class="drop-core-circle"/>
+                                    <text x="0" y="4" text-anchor="middle" class="drop-x-char">✕</text>
+                                    <rect x="-42" y="-34" width="84" height="16" rx="4" class="drop-label-bg"/>
+                                    <text x="0" y="-23" text-anchor="middle" class="drop-label-text">DROPPED</text>
+                                </g>
+
+                                <!-- NODES GROUP (Styled like the screenshot state circles) -->
+                                <g id="nodesGroup">
+                                    <!-- START ARROW TO PC -->
+                                    <text x="24" y="204" class="start-text">START</text>
+                                    <path d="M42 200 L56 200 M50 196 L56 200 L50 204" class="start-arrow"/>
+
+                                    <!-- NODE PC (70, 200) - Cyan Glow (INIT) -->
+                                    <g class="node-state-group node-cyan" id="nodeGroup-PC" data-node="PC" transform="translate(70, 200)">
+                                        <circle cx="0" cy="0" r="32" class="state-outer-ring ring-cyan"/>
+                                        <circle cx="0" cy="0" r="26" class="state-inner-circle"/>
+                                        <text x="0" y="3" text-anchor="middle" class="state-name">PC</text>
+                                        <text x="0" y="15" text-anchor="middle" class="state-sub">INIT</text>
+                                    </g>
+
+                                    <!-- NODE R1 (190, 200) - Blue Glow -->
+                                    <g class="node-state-group node-blue" id="nodeGroup-R1" data-node="R1" transform="translate(190, 200)">
+                                        <circle cx="0" cy="0" r="32" class="state-outer-ring ring-blue"/>
+                                        <circle cx="0" cy="0" r="26" class="state-inner-circle"/>
+                                        <text x="0" y="3" text-anchor="middle" class="state-name">R1</text>
+                                        <text x="0" y="15" text-anchor="middle" class="state-sub">GATEWAY</text>
+                                    </g>
+
+                                    <!-- NODE R2 (340, 80) - Green Glow (PRIMARY) -->
+                                    <g class="node-state-group node-green" id="nodeGroup-R2" data-node="R2" transform="translate(340, 80)">
+                                        <circle cx="0" cy="0" r="32" class="state-outer-ring ring-green"/>
+                                        <circle cx="0" cy="0" r="26" class="state-inner-circle"/>
+                                        <text x="0" y="3" text-anchor="middle" class="state-name">R2</text>
+                                        <text x="0" y="15" text-anchor="middle" class="state-sub">PRIMARY</text>
+                                    </g>
+
+                                    <!-- NODE R3 (340, 320) - Blue/Amber Glow (BACKUP) -->
+                                    <g class="node-state-group node-blue" id="nodeGroup-R3" data-node="R3" transform="translate(340, 320)">
+                                        <circle cx="0" cy="0" r="32" class="state-outer-ring ring-blue"/>
+                                        <circle cx="0" cy="0" r="26" class="state-inner-circle"/>
+                                        <text x="0" y="3" text-anchor="middle" class="state-name">R3</text>
+                                        <text x="0" y="15" text-anchor="middle" class="state-sub">BACKUP</text>
+                                    </g>
+
+                                    <!-- NODE R4 (470, 200) - Blue Glow -->
+                                    <g class="node-state-group node-blue" id="nodeGroup-R4" data-node="R4" transform="translate(470, 200)">
+                                        <circle cx="0" cy="0" r="32" class="state-outer-ring ring-blue"/>
+                                        <circle cx="0" cy="0" r="26" class="state-inner-circle"/>
+                                        <text x="0" y="3" text-anchor="middle" class="state-name">R4</text>
+                                        <text x="0" y="15" text-anchor="middle" class="state-sub">AGGR</text>
+                                    </g>
+
+                                    <!-- NODE Server (580, 200) - Purple Glow (ACCEPT) -->
+                                    <g class="node-state-group node-purple" id="nodeGroup-Server" data-node="Server" transform="translate(580, 200)">
+                                        <circle cx="0" cy="0" r="32" class="state-outer-ring ring-purple"/>
+                                        <circle cx="0" cy="0" r="29" class="state-double-ring"/>
+                                        <circle cx="0" cy="0" r="24" class="state-inner-circle"/>
+                                        <text x="0" y="3" text-anchor="middle" class="state-name">Server</text>
+                                        <text x="0" y="14" text-anchor="middle" class="state-sub">ACCEPT</text>
+                                    </g>
+                                </g>
+                            </svg>
+
+                            <!-- Hover Tooltip -->
+                            <div id="svgHoverTooltip" class="canvas-node-tooltip" style="display: none;"></div>
+                        </div>
+
+                        <!-- Bottom Status Strip inside Diagram (Matching screenshot IDLE bar) -->
+                        <div class="canvas-bottom-bar">
+                            <span class="idle-badge" id="canvasStatusBadge">IDLE</span>
+                            <span class="idle-text" id="canvasStatusText">Active: Press "Start Simulation" to begin packet forwarding</span>
+                        </div>
+                    </div>
+
+                    <!-- SUB-CARD RIGHT: Machine Dashboard (Matching screenshot layout) -->
+                    <div class="sub-panel sub-panel-dashboard">
+                        <div class="sub-panel-header">
+                            <div class="sub-header-title">
+                                <span class="sub-icon">📊</span>
+                                <span>MACHINE DASHBOARD</span>
+                            </div>
+                        </div>
+
+                        <!-- 3 Metric Boxes -->
+                        <div class="metric-triplet">
+                            <div class="triplet-box">
+                                <span class="triplet-label">CURRENT STEP</span>
+                                <strong class="triplet-val text-white" id="dashStepVal">0</strong>
+                            </div>
+                            <div class="triplet-box">
+                                <span class="triplet-label">ACTIVE ROUTE</span>
+                                <strong class="triplet-val text-green" id="dashActiveState">R2 (Optimal)</strong>
+                            </div>
+                            <div class="triplet-box">
+                                <span class="triplet-label">PATH METRIC</span>
+                                <strong class="triplet-val text-cyan" id="dashCostVal">6</strong>
+                            </div>
+                        </div>
+
+                        <!-- Forwarding Route Tape Display -->
+                        <div class="dashboard-section">
+                            <label class="dash-sec-label">CURRENT ROUTE CHAIN</label>
+                            <div class="tape-box" id="dashRouteTape">
+                                <span class="tape-text" id="dashRouteText">PC → R1 → R2 → R4 → Server</span>
+                            </div>
+                        </div>
+
+                        <!-- Hop-by-Hop Progression Stepper -->
+                        <div class="dashboard-section">
+                            <label class="dash-sec-label">HOP-BY-HOP PROGRESSION</label>
+                            <div class="hop-breadcrumb" id="hopBreadcrumb">
+                                <span class="breadcrumb-pill active" id="crumb-PC">PC</span>
+                                <span class="breadcrumb-arrow">→</span>
+                                <span class="breadcrumb-pill" id="crumb-R1">R1</span>
+                                <span class="breadcrumb-arrow">→</span>
+                                <span class="breadcrumb-pill" id="crumb-R2">R2</span>
+                                <span class="breadcrumb-arrow">→</span>
+                                <span class="breadcrumb-pill" id="crumb-R4">R4</span>
+                                <span class="breadcrumb-arrow">→</span>
+                                <span class="breadcrumb-pill" id="crumb-Server">Server</span>
+                            </div>
+                        </div>
+
+                        <!-- Telemetry / Stack Display -->
+                        <div class="dashboard-section">
+                            <label class="dash-sec-label">FORWARDING STATUS &amp; TELEMETRY</label>
+                            <div class="stack-box" id="dashTelemetryBox">
+                                <span class="telemetry-chip healthy" id="dashHealthChip">HEALTHY</span>
+                                <span class="telemetry-info" id="dashTelemetryInfo">Delivery: 0/0 Sent &bull; Loss: 0%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTTOM CONTAINER CARD: Simulation Step Log (Matching screenshot table) -->
+            <div class="card-container step-log-card">
+                <div class="card-header">
+                    <div class="header-left-group">
+                        <span class="card-icon text-muted">📄</span>
+                        <h2 class="card-title">SIMULATION STEP LOG</h2>
+                    </div>
+                    <div class="header-right-group">
+                        <span class="log-count-badge" id="logRecordBadge">0 Recorded</span>
+                        <button id="clearLogBtn" class="log-clear-btn" title="Clear log entries">Clear</button>
+                    </div>
+                </div>
+
+                <div class="step-log-table-wrap">
+                    <table class="step-log-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 10%;">STEP</th>
+                                <th style="width: 15%;">STATE / NODE</th>
+                                <th style="width: 25%;">TRANSIT / LINK</th>
+                                <th style="width: 15%;">COST</th>
+                                <th style="width: 35%;">ACTION / ROUTING DECISION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stepLogBody">
+                            <!-- Populated dynamically -->
+                            <tr class="empty-row" id="emptyLogRow">
+                                <td colspan="5" class="empty-text">No simulation steps recorded. Click "Start Simulation" or "Next Step" to begin.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- =========================================================================
+             RIGHT COLUMN: Problem Inputs & Controls + Parsed CFG + Quick Test Cases
+             ========================================================================= -->
+        <section class="column-right">
+
+            <!-- TOP CONTAINER CARD: Problem Inputs & Controls (Matching screenshot) -->
+            <div class="card-container">
+                <div class="card-header">
+                    <div class="header-left-group">
+                        <span class="card-icon text-red">✏️</span>
+                        <h2 class="card-title">Problem Inputs &amp; Controls</h2>
+                    </div>
+                    <div class="header-right-group">
+                        <span class="config-badge">SPF CONFIG</span>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <!-- SUBSECTION 1: Grammar & Input String equivalent -->
+                    <div class="control-section-header">
+                        <span class="sec-number-badge">1</span>
+                        <span class="sec-title">NETWORK TOPOLOGY &amp; TRAFFIC DEFINITION</span>
+                    </div>
+
+                    <!-- Inputs in a Row (Source, Destination, Routers count R, Algorithm) -->
+                    <div class="inputs-row">
+                        <div class="form-group">
+                            <label class="field-label">Source (Src)</label>
+                            <input type="text" class="field-input" id="srcNodeInput" value="PC" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="field-label">Dest (Dst)</label>
+                            <input type="text" class="field-input" id="dstNodeInput" value="Server" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="field-label">Routers (R)</label>
+                            <div class="router-stepper-control">
+                                <button id="decRouterBtn" class="stepper-btn" type="button" title="Decrease router count">&minus;</button>
+                                <input type="number" id="routerCountInput" class="stepper-input" value="4" min="2" max="8" readonly>
+                                <button id="incRouterBtn" class="stepper-btn" type="button" title="Increase router count">+</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="field-label">Algorithm</label>
+                            <input type="text" class="field-input" value="Dijkstra SPF" readonly>
+                        </div>
+                    </div>
+
+                    <!-- Textarea: Productions equivalent (Topology Weights) -->
+                    <div class="form-group" style="margin-top: 6px;">
+                        <div class="field-header-row">
+                            <label class="field-label">Link Adjacency &amp; Edge Weights (W)</label>
+                            <button id="updateDiagramBtn" class="btn-mini btn-update-diagram" type="button" title="Update network diagram with entered links &amp; weights">
+                                <span>🔄 Update Diagram</span>
+                            </button>
+                        </div>
+                        <textarea class="field-textarea" id="edgeWeightsTextarea" spellcheck="false" placeholder="Format: Source - Target: Weight (Note)">PC - R1: 1 (Access Link)
+R1 - R2: 2 (Primary Core Path)
+R1 - R3: 3 (Backup Core Path)
+R2 - R4: 2 (Primary Aggregation)
+R3 - R4: 2 (Backup Aggregation)
+R4 - Server: 1 (Datacenter Link)</textarea>
+                    </div>
+
+                    <!-- Simulation Instruction Banner -->
+                    <div class="sim-guide-banner" id="simGuideBanner">
+                        <span class="sim-guide-icon">👉</span>
+                        <span id="simGuideText">Click <strong>Start Simulation</strong> to initialize packet, then click <strong>Next Step</strong> to advance hop-by-hop!</span>
+                    </div>
+
+                    <!-- Action Buttons: Row 1 (Convert to PDA + Start Simulation) -->
+                    <div class="action-btn-row-primary">
+                        <button id="recalcDijkstraBtn" class="btn btn-blue" title="Recompute Dijkstra Shortest Path First">
+                            <span class="btn-icon">⚙</span>
+                            <span>Calculate Shortest Path</span>
+                        </button>
+                        <button id="startSimBtn" class="btn btn-green" title="Send animated packet through network">
+                            <span class="btn-icon">▶</span>
+                            <span>Start Simulation</span>
+                        </button>
+                    </div>
+
+                    <!-- Action Buttons: Row 2 (Previous + Next Step + Reset) -->
+                    <div class="action-btn-row-secondary">
+                        <button id="prevStepBtn" class="btn btn-dark" title="Step backward">
+                            <span>&larr; Previous</span>
+                        </button>
+                        <button id="nextStepBtn" class="btn btn-dark btn-highlight" title="Step forward one hop">
+                            <span>&rarr; Next Step</span>
+                        </button>
+                        <button id="resetSimBtn" class="btn btn-dark" title="Reset traffic and simulation">
+                            <span class="btn-icon">↺</span>
+                            <span>Reset</span>
+                        </button>
+                    </div>
+
+                    <!-- FAILURE INJECTION CONTROLS (Computer Networks specific controls) -->
+                    <div class="fault-injection-strip">
+                        <div class="fault-strip-header">
+                            <span class="fault-icon">💥</span>
+                            <span class="fault-title">FAULT INJECTION &amp; RECOVERY</span>
+                        </div>
+
+                        <div class="fault-controls-grid">
+                            <!-- Fail Router -->
+                            <div class="fault-control-item">
+                                <label class="micro-label">Fail Router:</label>
+                                <div class="inline-select-row">
+                                    <select id="routerFailSelect" class="micro-select">
+                                        <option value="R2">Router R2 (Primary Core)</option>
+                                        <option value="R3">Router R3 (Backup Core)</option>
+                                        <option value="R4">Router R4 (Aggregation)</option>
+                                        <option value="R1">Router R1 (Gateway)</option>
+                                    </select>
+                                    <button id="failRouterBtn" class="btn-mini btn-danger">Fail</button>
+                                </div>
+                            </div>
+
+                            <!-- Fail Link -->
+                            <div class="fault-control-item">
+                                <label class="micro-label">Sever Link:</label>
+                                <div class="inline-select-row">
+                                    <select id="linkFailSelect" class="micro-select">
+                                        <option value="R1-R2">R1 - R2 (Cost 2)</option>
+                                        <option value="R2-R4">R2 - R4 (Cost 2)</option>
+                                        <option value="R1-R3">R1 - R3 (Cost 3)</option>
+                                        <option value="R3-R4">R3 - R4 (Cost 2)</option>
+                                        <option value="PC-R1">PC - R1 (Cost 1)</option>
+                                        <option value="R4-Server">R4 - Server (Cost 1)</option>
+                                    </select>
+                                    <button id="failLinkBtn" class="btn-mini btn-danger">Sever</button>
+                                </div>
+                            </div>
+
+                            <!-- Recover Network -->
+                            <div class="fault-control-item full-width">
+                                <button id="recoverNetworkBtn" class="btn-mini btn-recovery">
+                                    <span>🔄 Recover Entire Network</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MIDDLE CARD: Parsed Route & FIB Details (Matching PARSED CFG DETAILS from screenshot) -->
+            <div class="card-container">
+                <div class="card-header mini-header">
+                    <div class="header-left-group">
+                        <span class="card-icon text-cyan">📄</span>
+                        <h2 class="card-title">PARSED ROUTING &amp; FIB DETAILS</h2>
+                    </div>
+                </div>
+                <div class="card-body details-body">
+                    <div class="detail-row">
+                        <span class="detail-key">Optimal Primary Path:</span>
+                        <span class="detail-val text-cyan" id="parsedPrimaryPath">PC &rarr; R1 &rarr; R2 &rarr; R4 &rarr; Server (Cost: 6)</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-key">Standby Alternate Path:</span>
+                        <span class="detail-val text-muted" id="parsedAlternatePath">PC &rarr; R1 &rarr; R3 &rarr; R4 &rarr; Server (Cost: 7)</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-key">Gateway Forwarding at R1:</span>
+                        <span class="detail-val" id="parsedGatewayDecision">Next Hop &rarr; 10.0.2.1 (Interface eth1 to R2)</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-key">SPF Protocol State:</span>
+                        <span class="detail-val text-green" id="parsedSPFState">Converged (Dijkstra Shortest Path First)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD: Quick Test Cases (Matching QUICK TEST CASES from screenshot) -->
+            <div class="card-container">
+                <div class="card-header mini-header">
+                    <div class="header-left-group">
+                        <span class="card-icon text-yellow">💡</span>
+                        <h2 class="card-title">QUICK TEST CASES</h2>
+                    </div>
+                    <div class="header-right-group">
+                        <span class="formula-badge">Dijkstra: min &sum; w(u, v)</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="test-cases-prompt">Click any preset scenario to test failover &amp; automatic recovery:</p>
+                    <div class="test-case-chips-wrap">
+                        <!-- Chip 1: Normal -->
+                        <button class="test-chip active-chip" data-scenario="normal">
+                            <span class="chip-label">Normal Baseline</span>
+                            <span class="chip-status valid">OPTIMAL</span>
+                        </button>
+
+                        <!-- Chip 2: Fail R2 -->
+                        <button class="test-chip" data-scenario="fail-r2">
+                            <span class="chip-label">Fail Router R2</span>
+                            <span class="chip-status valid">FAILOVER</span>
+                        </button>
+
+                        <!-- Chip 3: Sever R1-R2 -->
+                        <button class="test-chip" data-scenario="fail-link-r1-r2">
+                            <span class="chip-label">Sever Link R1-R2</span>
+                            <span class="chip-status valid">FAILOVER</span>
+                        </button>
+
+                        <!-- Chip 4: Sever R2-R4 -->
+                        <button class="test-chip" data-scenario="fail-link-r2-r4">
+                            <span class="chip-label">Sever Link R2-R4</span>
+                            <span class="chip-status valid">FAILOVER</span>
+                        </button>
+
+                        <!-- Chip 5: Core Partition -->
+                        <button class="test-chip" data-scenario="unreachable-core">
+                            <span class="chip-label">R2 &amp; R3 Down</span>
+                            <span class="chip-status invalid">UNREACHABLE</span>
+                        </button>
+
+                        <!-- Chip 6: Egress Down -->
+                        <button class="test-chip" data-scenario="unreachable-r4">
+                            <span class="chip-label">Router R4 Down</span>
+                            <span class="chip-status invalid">UNREACHABLE</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- AI TUTOR / CHATBOX MODAL -->
+    <div id="aiTutorModal" class="tutor-modal-overlay" style="display: none;">
+        <div class="tutor-modal-box chat-modal-box">
+            <!-- Modal Header -->
+            <div class="modal-top">
+                <div class="modal-title-wrap">
+                    <div class="tutor-avatar">🤖</div>
+                    <div>
+                        <div class="tutor-title-row">
+                            <h3>Computer Networks AI Tutor</h3>
+                            <span class="ai-badge-live">Gemini AI</span>
+                        </div>
+                        <p class="tutor-status-text">Simple &amp; short explanations for students &bull; Code &amp; Networking Guide</p>
+                    </div>
+                </div>
+                <div class="modal-header-actions">
+                    <button id="toggleApiKeyBtn" class="btn-micro" type="button" title="Configure Google Gemini API Key">
+                        <span>🔑 API Key</span>
+                    </button>
+                    <button id="closeTutorModalBtn" class="modal-close-x" type="button" title="Close AI Tutor">&times;</button>
+                </div>
+            </div>
+
+            <!-- API Key Configuration Drawer (Collapsible) -->
+            <div id="apiKeyConfigDrawer" class="api-key-drawer" style="display: none;">
+                <div class="api-key-row">
+                    <label class="micro-label" for="geminiApiKeyInput">Google Gemini API Key:</label>
+                    <div class="api-input-wrap">
+                        <input type="password" id="geminiApiKeyInput" class="field-input micro-input" placeholder="Paste your Gemini API key (e.g. AIzaSy...)" autocomplete="off">
+                        <button id="saveApiKeyBtn" class="btn-mini btn-blue" type="button">Save</button>
+                        <button id="clearApiKeyBtn" class="btn-mini btn-dark" type="button">Clear</button>
+                    </div>
+                </div>
+                <p class="api-key-hint">💡 Keys are saved locally in your browser. If no key is set, the AI Tutor uses built-in smart student explanations!</p>
+            </div>
+
+            <!-- Chat Messages Container -->
+            <div class="chat-thread-container" id="tutorChatThread">
+                <!-- Welcome Message from AI Tutor -->
+                <div class="chat-msg msg-ai">
+                    <div class="msg-avatar">🤖</div>
+                    <div class="msg-bubble">
+                        <div class="msg-author">AI Tutor</div>
+                        <div class="msg-body">
+                            <p>👋 Hello student! I am your <strong>Computer Networks AI Tutor</strong>.</p>
+                            <p>Ask me anything about:</p>
+                            <ul>
+                                <li><strong>Dijkstra's Algorithm</strong> &amp; shortest path calculation</li>
+                                <li><strong>Router Failures</strong> &amp; automatic recovery failover</li>
+                                <li><strong>Unreachable States</strong> &amp; packet loss</li>
+                                <li><strong>Simulator Code</strong>: how the JavaScript logic, graph, &amp; animations work</li>
+                            </ul>
+                            <p>I will give you <strong>simple, short, and beginner-friendly</strong> answers!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Question Chips -->
+            <div class="quick-prompts-bar">
+                <span class="quick-prompts-title">Quick questions:</span>
+                <div class="quick-prompts-scroll">
+                    <button class="prompt-chip" type="button" data-question="How does Dijkstra SPF find the shortest route in simple terms?">Dijkstra in simple terms</button>
+                    <button class="prompt-chip" type="button" data-question="What happens when Router R2 fails and how does the network recover?">What happens if R2 fails?</button>
+                    <button class="prompt-chip" type="button" data-question="Why does a packet get dropped when the network is unreachable?">Why are packets dropped?</button>
+                    <button class="prompt-chip" type="button" data-question="How does the simulator code animate packets hop by hop?">How does the animation code work?</button>
+                    <button class="prompt-chip" type="button" data-question="How do link weights determine the best path?">How do link weights work?</button>
+                </div>
+            </div>
+
+            <!-- Input Bar -->
+            <div class="chat-input-bar">
+                <input type="text" id="tutorQuestionInput" class="chat-input-field" placeholder="Ask a question about the network or code (e.g. 'Explain Dijkstra simply')..." autocomplete="off">
+                <button id="tutorSendBtn" class="chat-send-btn" type="button">
+                    <span>Ask Tutor</span>
+                    <span class="btn-icon">🚀</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script src="script.js"></script>
+</body>
+</html>
